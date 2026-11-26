@@ -1543,37 +1543,39 @@ class CheckpointManager(ReviewedRestoreMixin):
         if not has_ref and ref_error:
             return False
         index_file.parent.mkdir(parents=True, exist_ok=True)
-        if not has_ref:
-            # An interrupted first add may strand Git's index.lock. Keep both
-            # in an operation-owned directory so a retry starts clean without
-            # inspecting or unlinking another writer's lock.
-            with tempfile.TemporaryDirectory(dir=index_file.parent) as temp:
-                index = Path(temp) / "index"
-                taken = self._take_with_index(store, working_dir, reason, ref, ref_commit, index, prune)
-                if taken:
-                    # Publish the optional stat cache through Git's lockfile
-                    # convention. A competing writer or lack of hard links
-                    # merely leaves the next read-tree to rebuild the cache.
-                    lock = Path(f"{index_file}.lock")
+        lock = Path(f"{index_file}.lock")
+        if has_ref and not lock.exists():
+            return self._take_with_index(store, working_dir, reason, ref, ref_commit, index_file, prune)
+
+        # A first add can strand Git's index.lock if interrupted. Isolate it
+        # and continue using a private index if an earlier build left a lock
+        # at the canonical location. The project ref owns the history in both.
+        with tempfile.TemporaryDirectory(dir=index_file.parent) as temp:
+            index = Path(temp) / "index"
+            taken = self._take_with_index(store, working_dir, reason, ref, ref_commit, index, prune)
+            if taken:
+                # Publish the optional stat cache through Git's lockfile
+                # convention. A competing writer or lack of hard links
+                # merely leaves the next read-tree to rebuild the cache.
+                try:
+                    os.link(index, lock)
+                except OSError:
+                    pass
+                else:
                     try:
-                        os.link(index, lock)
+                        os.replace(lock, index_file)
                     except OSError:
-                        pass
-                    else:
-                        try:
-                            os.replace(lock, index_file)
-                        except OSError:
-                            _unlink_quiet(lock)
-                return taken
-        ok, _, _ = _run_git(["read-tree", ref_commit], store, working_dir, index_file=index_file)
-        if not ok:
-            return False
-        return self._take_with_index(store, working_dir, reason, ref, ref_commit, index_file, prune)
+                        _unlink_quiet(lock)
+            return taken
 
     def _take_with_index(
         self, store: Path, working_dir: str, reason: str, ref: str,
         ref_commit: str, index_file: Path, prune: bool,
     ) -> bool:
+        if ref_commit:
+            ok, _, _ = _run_git(["read-tree", ref_commit], store, working_dir, index_file=index_file)
+            if not ok:
+                return False
         # Drop entries the old tree carries but this build excludes BEFORE staging: ``add -A``
         # re-reads every tracked path, and a locked browser-profile file would fail it each time.
         _unstage_store(store, working_dir, index_file)

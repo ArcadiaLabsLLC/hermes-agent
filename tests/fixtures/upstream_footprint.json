@@ -2,7 +2,7 @@
   "measured_at": "2026-11-25",
   "base": "3b42157858",
   "files": 231,
-  "deleted_lines": 1019,
+  "deleted_lines": 1017,
   "heavy": 2,
   "reasons": [
     {
@@ -1585,6 +1585,21 @@
       },
       "reason": "Use the existing shadow Git store for the first import, including process-tree cancellation, a private staging index and the caller's remaining work window. The native manager tests cover retries, canonical tree equality, deadlines and filter descendants.",
       "owner_ruling": "2026-11-25: fix the cold checkpoint, test the real workspace and offer the shared improvement upstream."
+    },
+    {
+      "change": "Warm capture after an interrupted older import",
+      "before": {
+        "files": 231,
+        "deleted_lines": 1019,
+        "heavy": 2
+      },
+      "after": {
+        "files": 231,
+        "deleted_lines": 1017,
+        "heavy": 2
+      },
+      "reason": "Seed the same capture operation from the project ref whenever another writer holds the canonical index lock. Keep the competing lock intact.",
+      "owner_ruling": "2026-11-25: verify retries and existing workspaces in the checkpoint fix."
     }
   ]
 }

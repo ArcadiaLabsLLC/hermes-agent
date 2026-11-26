@@ -222,10 +222,15 @@ class TestTakeCheckpoint:
         assert mgr.ensure_checkpoint(str(work_dir))
         assert foreign_lock.read_bytes() == b"another writer"
         assert not canonical.exists()
-        foreign_lock.unlink()
+        baseline = mgr.list_checkpoints(str(work_dir))[0]["hash"]
         (work_dir / "main.py").write_text("warm change")
         mgr.new_turn()
         assert mgr.ensure_checkpoint(str(work_dir))
+        ref = _ref_name(dir_hash)
+        assert _run_git(["rev-parse", ref + "^"], store, str(work_dir))[:2] == (True, baseline)
+        assert _run_git(["show", ref + ":main.py"], store, str(work_dir))[:2] == (True, "warm change")
+        assert foreign_lock.read_bytes() == b"another writer"
+        assert not canonical.exists()
 
     @pytest.mark.parametrize(("count", "cold", "remaining", "expected_timeout"), [
         (100, True, None, 60),
