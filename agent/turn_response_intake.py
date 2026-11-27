@@ -241,4 +241,9 @@ def normalize_model_response(
     if hasattr(agent, "_codex_incomplete_retries"):
         agent._codex_incomplete_retries = 0
         agent._codex_reasoning_only_streak = 0
+    if content:
+        # Durability follows accepted replies even when no lifecycle plugins are loaded.
+        from agent_runtime.transport_dispatch_evidence import record_reply_route
+
+        record_reply_route(agent, getattr(response, "model", None), request_id=api_request_id)
     return _verdict("fallthrough")
