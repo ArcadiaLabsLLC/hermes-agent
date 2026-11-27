@@ -217,6 +217,7 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     # is the journal's own word, read at publish time, so it cannot drift from
     # what the projection will report.
     "persona_chat.turn_started": EventContract("persona_chat.turn_started", "Persona chat turn started", ("persona_instance_id", "root_chat_session_id", "client_message_id", "turn_id"), ("active_session_id",)),
+    "persona_chat.turn_model_route_changed": EventContract("persona_chat.turn_model_route_changed", "Persona chat turn changed execution route", ("persona_instance_id", "root_chat_session_id", "client_message_id", "turn_id"), ("active_session_id",)),
     "persona_chat.turn_ended": EventContract("persona_chat.turn_ended", "Persona chat turn left the in-flight set", ("persona_instance_id", "root_chat_session_id", "client_message_id", "turn_id", "state"), ("active_session_id",)),
     # RT-EMIT-RUNNING-WORK-CHAT (plan p10-turn-2026-10-19 §2 S2). The terminal
     # lane's pair, the chat-turn pair one lane over: a background process entered

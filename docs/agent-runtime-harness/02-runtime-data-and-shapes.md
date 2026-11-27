@@ -1171,6 +1171,14 @@ launcher already parses: rule (a) does not bump. A request's own turn row (``age
 ``parent_work_id: dispatch:<id>`` (RT-FU-AN-AGENT-REQUESTS-OWN-TURN-NAMES-ITS-REQUEST), the link field a
 foreground tool call already carries. A harness-delivery marker carries the target's name with an empty thread
 segment when no thread opened (``relay_policy.delivery_segments``, RT-FU-A-STOPPED-REQUESTS-RESULT-NAMES-NO-AGENT).
+A real agent chat turn's Running Work row can carry ``model_route: {provider, model}``. While executing,
+this is the route that took the last main model request. When finished, it is the accepted route that
+provided the recorded reply, using the response's model ID when supplied. A turn that has no observed
+route or finishes without a provider reply omits the field in the corresponding state. The turn's
+existing attempt ledger records the execution boundary and the reply intake. A route change updates the
+same journal and publishes one ``persona_chat.turn_model_route_changed`` invalidation to the Running Work
+stream. Repeated attempts on an unchanged route cost no new journal write or stream event.
+
 RT-SLOT-RECIPE-SCRIPT-RUN-ON-CLICK (2026-11-16): ``runtime.workspace.recipe.run_step`` takes ``step_id: script`` and
 the ``sha256`` the person was shown (``script_changed`` otherwise, nothing spawned) and runs the platform script
 through ``host_tools.script_shell`` (``pwsh``/``powershell -NoProfile -File`` on Windows, ``bash`` elsewhere);

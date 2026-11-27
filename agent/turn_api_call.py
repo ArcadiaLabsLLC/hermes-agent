@@ -98,6 +98,11 @@ def perform_api_call(
                 next_api_kwargs, allow_stream=False, drop_replay_item_ids=drops_replay_item_ids(agent.base_url),
                 sanitize_harmony_tokens=agent._is_codex_backend(),
             )
+        from agent_runtime.transport_dispatch_evidence import record_dispatched_route
+
+        record_dispatched_route(
+            agent, next_api_kwargs.get("model") or agent.model, provider=agent.provider, request_id=api_request_id,
+        )
         if _use_streaming:
             return agent._interruptible_streaming_api_call(
                 next_api_kwargs, on_first_delta=_stop_spinner

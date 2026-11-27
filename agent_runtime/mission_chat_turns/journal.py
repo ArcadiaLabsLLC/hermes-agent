@@ -11,6 +11,7 @@ from typing import Any, Callable, TypeVar
 
 from agent_runtime.clock import now_iso_micro
 from agent_runtime.mission_chat_phases import TURN_RECORD_SCHEMA_VERSION
+from agent_runtime.model_route import ACTIVE_MODEL_ROUTE, ModelRoute
 from agent_runtime.serde import safe_assignment_text, safe_assignment_token
 
 from agent_runtime.mission_chat_turns.records import _safe_elements, _safe_journal_metadata
@@ -19,6 +20,7 @@ from agent_runtime.mission_chat_turns.states import (
     JOURNAL_TURN_STATES,
     LEGACY_TURN_STATES,
     TurnResolution,
+    TURN_STATE_EXECUTING,
     TURN_STATE_INTERRUPTED,
     _JOURNAL_TRANSITIONS,
     _LEGACY_TO_JOURNAL_STATE,
@@ -193,6 +195,25 @@ def transition_mission_chat_turn(
         timeout_result=MissionChatTurnPersistOutcome.SKIPPED_LOCK_TIMEOUT,
         protected_message=message_key,
     )
+
+
+def record_active_model_route(
+    *, session_id: str, client_message_id: str, turn_id: str, route: ModelRoute,
+) -> bool:
+    """Write the active route only on its existing executing turn, without moving the turn clock."""
+
+    def _mutate(session: dict[str, Any]) -> tuple[bool, bool]:
+        record = session.get(client_message_id)
+        if not isinstance(record, dict) or record.get("turn_id") != turn_id:
+            return False, False
+        if _record_state(record) != TURN_STATE_EXECUTING:
+            return False, False
+        if record.get(ACTIVE_MODEL_ROUTE) == route:
+            return False, True  # the previous append may have failed
+        record[ACTIVE_MODEL_ROUTE] = route
+        return True, True
+
+    return _mutate_session(session_id, _mutate, timeout_result=False, protected_message=client_message_id)
 
 
 def resolve_mission_chat_turn(

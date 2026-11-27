@@ -762,10 +762,15 @@ def run_codex_app_server_turn(agent, *, user_message: str, original_user_message
     try:
         _start_codex_thread(agent)
         wire_model = _codex_wire_model(agent, getattr(agent, "_codex_session_model_provider", None))
+        from agent_runtime.transport_dispatch_evidence import record_dispatched_route, record_reply_route
+
         turn = agent._codex_session.run_turn(
             user_input=user_message,
             model=wire_model, reasoning_effort=_codex_turn_effort(agent, wire_model),
+            on_started=functools.partial(record_dispatched_route, agent, provider=getattr(agent, "provider", None)),
             service_tier=_codex_turn_service_tier(agent))
+        if turn.final_text:
+            record_reply_route(agent)
     except Exception as exc:
         logger.exception("codex app-server turn failed")
         _close_codex_session(agent)

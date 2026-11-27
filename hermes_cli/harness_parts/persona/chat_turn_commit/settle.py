@@ -27,6 +27,7 @@ from agent_runtime.mission_chat_phases import (
     turn_timing_block,
 )
 from agent_runtime.mission_chat_turns.journal import transition_mission_chat_turn
+from agent_runtime.model_route import MODEL_ROUTE
 from agent_runtime.mission_chat_turns.records import (
     TURN_OUTCOME_KEY as MISSION_CHAT_TURN_OUTCOME_KEY,
     TURN_PROFILE_TIMING_KEY as MISSION_CHAT_TURN_PROFILE_TIMING_KEY,
@@ -359,6 +360,7 @@ class _SettlePhases:
                 native_snapshot=(native_stamp, active_session_id, native_history),
             )
         self.turn_phases.mark("native_committed")
+        route = self.transport_attempts.reply_route if self.transport_attempts is not None else None
         _settled = transition_mission_chat_turn(
             session_id=session_id,
             client_message_id=self.client_message_id,
@@ -379,6 +381,7 @@ class _SettlePhases:
                 ),
                 "native_revision": native_revision,
                 "native_committed": True,
+                **({MODEL_ROUTE: route} if route and reply_text else {}),
                 # Persist with the native receipt, before the external owner receives
                 # a callback. A crash must not lose a committed clarify question.
                 **auxiliary_result_metadata(self.instance.id, session_id, getattr(self.chat_result, "raw", None)),

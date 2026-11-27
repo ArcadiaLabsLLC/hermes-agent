@@ -65,14 +65,18 @@ row is gone).
 from __future__ import annotations
 
 import logging
+from contextvars import Context, copy_context
 from typing import Any
 
 __layer__ = "stores"
+
+from .model_route import ModelRoute
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     "EVENT_TURN_ENDED",
+    "EVENT_TURN_MODEL_ROUTE_CHANGED",
     "EVENT_TURN_STARTED",
     "ChatTurnPresence",
 ]
@@ -81,6 +85,7 @@ __all__ = [
 #: commit as this emitter, per S55.
 EVENT_TURN_STARTED = "persona_chat.turn_started"
 EVENT_TURN_ENDED = "persona_chat.turn_ended"
+EVENT_TURN_MODEL_ROUTE_CHANGED = "persona_chat.turn_model_route_changed"
 
 #: What :meth:`ChatTurnPresence.publish_ended` reports when the turn journal has
 #: no record for the turn any more. Not ``"unknown"``: the store answered, and
@@ -97,10 +102,11 @@ class ChatTurnPresence:
     the write-ahead journal record that makes the row real.
     """
 
-    __slots__ = ("_ended", "_identity", "_started")
+    __slots__ = ("_ended", "_identity", "_journal_context", "_started")
 
     def __init__(self) -> None:
         self._identity: dict[str, Any] | None = None
+        self._journal_context: Context | None = None
         self._started = False
         self._ended = False
 
@@ -140,8 +146,30 @@ class ChatTurnPresence:
         self._identity = dict(identity, persona_id=str(persona_id or ""))
         if not self._append(EVENT_TURN_STARTED, identity):
             return False
+        self._journal_context = copy_context()
         self._started = True
         return True
+
+    def publish_model_route(self, route: ModelRoute) -> bool:
+        """Notify Running Work after the executing turn's route is readable from the journal."""
+        if self._journal_context is None or self._ended:
+            return False
+        # The provider runs in a profile context. Write to the same journal that registered the turn.
+        return self._journal_context.copy().run(self._publish_model_route, route)
+
+    def _publish_model_route(self, route: ModelRoute) -> bool:
+        from .mission_chat_turns.journal import record_active_model_route
+
+        identity = self._identity
+        if identity is None or not record_active_model_route(
+            session_id=identity["root_chat_session_id"], client_message_id=identity["client_message_id"],
+            turn_id=identity["turn_id"], route=route,
+        ):
+            return False
+        return self._append(
+            EVENT_TURN_MODEL_ROUTE_CHANGED,
+            {key: value for key, value in identity.items() if key != "persona_id"},
+        )
 
     def publish_ended(self) -> bool:
         """Announce that the turn left the in-flight set. Returns whether it landed.
@@ -153,6 +181,7 @@ class ChatTurnPresence:
         if not self._started or self._ended or self._identity is None:
             return False
         self._ended = True
+        self._journal_context = None
         identity = {
             key: value
             for key, value in self._identity.items()
