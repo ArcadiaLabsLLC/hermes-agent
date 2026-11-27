@@ -15,8 +15,8 @@ in their own section at the bottom.
 ## The chat-only lane
 
 There is one runtime execution surface. `GPTPersonaRuntime`
-(`agent_runtime/persona_runtime.py:51`) exposes exactly **one** public method,
-`mission_chat_reply` (`:72`) — there is no `run_persona`, no tick, no worker
+(`agent_runtime/persona_runtime.py`) exposes exactly **one** public method,
+`mission_chat_reply` — there is no `run_persona`, no tick, no worker
 loop. The entry point is `_cmd_mission_chat_message` — defined at
 `hermes_cli/harness_parts/persona/chat_turn_message.py::_cmd_mission_chat_message`, a real module
 (lanes H1/H3, 2026-09-24) wired to argparse at
