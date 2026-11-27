@@ -33,7 +33,7 @@ __all__ = ["RULE_VECTORS_REVISION", "call_settings"]
 #: The first 16 hex digits of the SHA-256 of ``tests/fixtures/voice_call_rules/vectors.json``.
 #: ``test_voice_call_rule_vectors.py`` fails when they differ, so a rule change that rewrites the
 #: file must move this too, and every client port sees the change.
-RULE_VECTORS_REVISION = "7a95b88601f3127f"
+RULE_VECTORS_REVISION = "0b391f72403c7dc5"
 
 _DEFAULT_GRACE_SECONDS = 0.5
 

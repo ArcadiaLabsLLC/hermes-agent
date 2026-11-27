@@ -92,6 +92,12 @@ BARGE_SCENARIOS: list[dict] = [
      "settings": {"threshold_multiplier": 0}, "runs": [CALIBRATE, [SPEECH, False, 20]]},
 ]
 
+LONG_REPLY = (
+    "Once upon a time there was a lighthouse by the sea. The keeper climbed the stairs every night to light "
+    "the lamp, and the ships came home safely. One winter a storm broke the lamp, and the keeper carried a "
+    "lantern up the stairs every hour until morning came."
+)
+
 ECHO_CASES: list[dict] = [
     {"name": "the_whole_reply_heard_back", "transcript": "Sure, here's a short story about a lighthouse.",
      "spoken": "Sure, here's a short story about a lighthouse."},
@@ -107,6 +113,24 @@ ECHO_CASES: list[dict] = [
      "spoken": "Do you want another story? Say yes or no."},
     {"name": "a_real_interruption_is_the_user", "transcript": "wait, can you make it about a dragon instead",
      "spoken": "Once upon a time there was a lighthouse by the sea. The keeper climbed the stairs every night."},
+    # Replies of 200 characters or more: difflib's SequenceMatcher then ignores the most common
+    # characters (autojunk), which moves every ratio. Two of these flip without that rule, so a
+    # port that skips it fails here.
+    {"name": "the_whole_long_reply_heard_back", "transcript": LONG_REPLY, "spoken": LONG_REPLY},
+    {"name": "a_long_reply_heard_back_with_an_extra_line",
+     "transcript": LONG_REPLY + " And that is the end of the story, I hope you liked it.", "spoken": LONG_REPLY},
+    {"name": "a_fragment_of_a_long_reply_is_found_by_the_sliding_window", "transcript": LONG_REPLY[40:120],
+     "spoken": LONG_REPLY},
+    {"name": "a_long_story_retold_with_other_words_is_not_an_echo",
+     "transcript": LONG_REPLY.replace("lighthouse", "windmill").replace("keeper", "miller").replace("lamp", "sails")
+     + " The end of the tale.", "spoken": LONG_REPLY},
+    {"name": "a_different_long_story_is_not_an_echo",
+     "transcript": "Once upon a time there was a windmill on a hill. The miller climbed the ladder every morning to "
+                   "turn the sails, and the village had bread. One summer a fire broke the sails, and the miller "
+                   "carried flour down the hill every day until autumn came. The end.", "spoken": LONG_REPLY},
+    {"name": "a_real_interruption_over_a_long_reply_is_the_user",
+     "transcript": "wait can you tell me a different story about a dragon who guards a mountain of gold instead please",
+     "spoken": LONG_REPLY},
     # The fragment search starts at 10 characters: 9 matching ones are too short to call an echo.
     {"name": "a_nine_character_fragment_is_too_short_to_be_an_echo", "transcript": "fox jumps",
      "spoken": "The quick brown fox jumps over the lazy dog by the river."},

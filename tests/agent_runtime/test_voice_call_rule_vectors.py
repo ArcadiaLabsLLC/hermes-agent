@@ -163,3 +163,20 @@ def test_the_check_mode_says_when_the_file_is_stale(tmp_path, monkeypatch, capsy
     monkeypatch.setattr(vectors_script, "REPO_ROOT", tmp_path)
     assert vectors_script.main([]) == 1
     assert "stale" in capsys.readouterr().out
+
+
+def test_the_echo_cases_pin_difflibs_rule_for_long_replies(monkeypatch):
+    """At 200 characters difflib ignores the most common characters (autojunk). The file must hold
+    cases whose verdict that rule decides, or a port that skips it would pass: the live
+    ``is_tts_echo`` run with the rule off must disagree with the file on at least two.
+
+    Killing mutation: drop the two retold-story cases from ``ECHO_CASES`` -> fewer than two flip."""
+    import difflib
+
+    from tools.voice_mode_transcript import is_tts_echo
+
+    real = difflib.SequenceMatcher
+    monkeypatch.setattr(difflib, "SequenceMatcher", lambda *args, **kwargs: real(*args, **kwargs, autojunk=False))
+    flipped = [case["name"] for case in _vectors()["echo"]
+               if is_tts_echo(case["transcript"], case["spoken"]) != case["echo"]]
+    assert len(flipped) >= 2, flipped
