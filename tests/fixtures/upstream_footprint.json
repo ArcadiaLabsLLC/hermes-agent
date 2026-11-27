@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-11-27",
   "base": "3b42157858",
-  "files": 233,
+  "files": 234,
   "deleted_lines": 1017,
   "heavy": 2,
   "reasons": [
@@ -1615,6 +1615,21 @@
       },
       "reason": "Two additive observations at the actual generic and Codex app-server execution boundaries, both feeding one existing turn ledger. The request may be rewritten or vetoed by middleware and the native Codex path bypasses that loop.",
       "owner_ruling": "2026-11-27 \u00b7 Eternia task chat, implement the first-class fix with existing Hermes execution data and test Codex, fallback, and the finished row after reload"
+    },
+    {
+      "change": "Live Android Finished model uses the accepted response without plugin hooks",
+      "before": {
+        "files": 233,
+        "deleted_lines": 1017,
+        "heavy": 2
+      },
+      "after": {
+        "files": 234,
+        "deleted_lines": 1017,
+        "heavy": 2
+      },
+      "reason": "Bind the accepted model to the existing dispatch evidence on the shared response path. A bundled Android runtime can accept and commit a reply without the optional lifecycle observers.",
+      "owner_ruling": "2026-11-27 \u00b7 Eternia task chat: reuse the existing Hermes execution data, push it through Running Now with no extra polling, and test Codex, fallback, and the finished row after reload."
     }
   ]
 }

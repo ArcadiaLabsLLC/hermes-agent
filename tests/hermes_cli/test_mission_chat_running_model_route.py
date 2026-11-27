@@ -12,7 +12,7 @@ import pytest
 from agent.codex_runtime import run_codex_app_server_turn
 from agent.turn_api_call import perform_api_call
 from agent.turn_recovery import activate_codex_app_server_fallback
-from agent.turn_response_intake import _fire_post_api_request_hook
+from agent.turn_response_intake import normalize_model_response
 from agent_runtime.chat_turn_presence import EVENT_TURN_MODEL_ROUTE_CHANGED
 from agent_runtime.events import EventLog
 from agent_runtime.patch_coverage import HISTORICAL_FOLD_ENTITIES, RUNNING_WORK_SECTION_CAPABILITY
@@ -20,7 +20,6 @@ from agent_runtime.persona_turn_binding import bind_persona_turn_agent
 from agent_runtime.serde import to_jsonable
 from agent_runtime.stream.build import _batch_frames_with_liveness
 from agent_runtime.stream.frames import running_work_frame
-from agent_runtime.usage_ledger import on_post_api_request
 from hermes_cli import lifecycle, middleware
 from hermes_cli.harness_parts.persona import chat_turn_message
 from tests.agent.test_provider_fallback import _make_agent, _mock_client
@@ -69,6 +68,28 @@ def _generic_request(agent, request_id):
     ).response
 
 
+def _provider_response(model, *, content="answer"):
+    if content is None:
+        item = SimpleNamespace(
+            type="function_call", id="fc_1", call_id="call_1", name="lookup", arguments="{}",
+        )
+    else:
+        item = SimpleNamespace(
+            type="message", role="assistant",
+            content=[SimpleNamespace(type="output_text", text=content)],
+        )
+    return SimpleNamespace(model=model, status="completed", output=[item])
+
+
+def _accept_response(agent, response, request_id):
+    verdict = normalize_model_response(
+        agent, response=response, messages=[], api_messages=[], conversation_history=[],
+        api_call_count=1, api_duration=0, api_start_time=0, api_request_id=request_id,
+        effective_task_id=TURN_ID, turn_id=TURN_ID,
+    )
+    assert verdict.action == "fallthrough"
+
+
 @pytest.mark.parametrize("fallback", [False, True], ids=["codex", "codex-fallback"])
 def test_running_work_pushes_then_reloads_the_answering_route(
     monkeypatch, capsys, isolate_agent_runtime_root, fallback,
@@ -96,15 +117,8 @@ def test_running_work_pushes_then_reloads_the_answering_route(
         lambda *a, **k: (_mock_client(base_url="https://api.openai.com/v1"), FALLBACK_ROUTE["model"]),
     )
     monkeypatch.setattr("agent.turn_api_call._should_stream", lambda _: False)
-    monkeypatch.setattr(lifecycle, "has_hook", lambda name: name == "post_api_request")
-    def invoke_hook(name, **kwargs):
-        if name == "post_api_request":
-            on_post_api_request(**kwargs)
-        return []
-
-    monkeypatch.setattr(lifecycle, "invoke_hook", invoke_hook)
-    monkeypatch.setattr(agent, "_api_response_payload_for_hook", lambda *a, **k: {})
-    monkeypatch.setattr(agent, "_usage_summary_for_api_request_hook", lambda _: None)
+    # The embedded phone engine accepts replies without an optional telemetry hook.
+    monkeypatch.setattr(lifecycle, "has_hook", lambda _: False)
 
     frames = []
     offsets = {}
@@ -124,7 +138,7 @@ def test_running_work_pushes_then_reloads_the_answering_route(
             frame = _next_route_frame(offsets["before_fallback"])
             assert _turn_row(frame)["model_route"] == FALLBACK_ROUTE
             frames.append(frame)
-        return SimpleNamespace(model=REPLY_ROUTE["model"])
+        return _provider_response(REPLY_ROUTE["model"])
 
     monkeypatch.setattr(agent, "_interruptible_api_call", fallback_response)
 
@@ -154,22 +168,10 @@ def test_running_work_pushes_then_reloads_the_answering_route(
                     offset = _last_offset()
                     response = _generic_request(agent, "fallback-2")
                     assert _last_offset() == offset  # same route, no extra stream event
-                    assistant = SimpleNamespace(content="answer", tool_calls=[])
-                    _fire_post_api_request_hook(
-                        agent, response, assistant, "stop", api_messages=[], api_call_count=1, api_duration=0,
-                        api_start_time=0, api_request_id="fallback-2", effective_task_id=TURN_ID, turn_id=TURN_ID,
-                    )
+                    _accept_response(agent, response, "fallback-2")
                     # A late result from the first attempt must not overwrite the answer.
-                    _fire_post_api_request_hook(
-                        agent, SimpleNamespace(model="stale-response"), assistant, "stop", api_messages=[],
-                        api_call_count=1, api_duration=0, api_start_time=0, api_request_id="fallback-1",
-                        effective_task_id=TURN_ID, turn_id=TURN_ID,
-                    )
-                    _fire_post_api_request_hook(
-                        agent, SimpleNamespace(model="tool-only"), SimpleNamespace(content=None, tool_calls=[{}]),
-                        "tool_calls", api_messages=[], api_call_count=2, api_duration=0, api_start_time=0,
-                        api_request_id="fallback-2", effective_task_id=TURN_ID, turn_id=TURN_ID,
-                    )
+                    _accept_response(agent, _provider_response("stale-response"), "fallback-1")
+                    _accept_response(agent, _provider_response("tool-only", content=None), "fallback-2")
                 else:
                     assert native["completed"] and native["final_response"] == "answer"
             return SimpleNamespace(final_response="answer", input_tokens=1, output_tokens=1, total_tokens=2,
