@@ -64,6 +64,14 @@ def record_usage(usage: Any) -> None:
     rows.append({"call_index": len(rows) + 1, **{field: _bucket(usage, field) for field in CALL_FIELDS}})
 
 
-def on_post_api_request(usage: Any = None, **_context: Any) -> None:
-    """``post_api_request`` hook: the call's normalized token buckets become a ledger row."""
+def on_post_api_request(
+    usage: Any = None, *, response_model: Any = None, assistant_content_chars: int = 0,
+    api_request_id: str | None = None, **_context: Any,
+) -> None:
+    """Observe the accepted main-loop response using the provider's existing intake facts."""
+    from .persona_turn_binding import current_persona_turn_agent
+    from .transport_dispatch_evidence import record_reply_route
+
     record_usage(usage)
+    if assistant_content_chars:
+        record_reply_route(current_persona_turn_agent(), response_model, request_id=api_request_id)

@@ -4,6 +4,8 @@ delegations, in-flight mission-chat turns (live: with their foreground
 
 from __future__ import annotations
 
+from ..model_route import ACTIVE_MODEL_ROUTE, MODEL_ROUTE
+
 import json
 import sqlite3
 from collections.abc import Mapping
@@ -546,6 +548,7 @@ class ChatTurnLane(LanePass):
         # A pass of an UNTIL_DONE Work run says which pass it is, and its Stop (``runtime.work.cancel``)
         # ends the whole run (RT-WORK-CLAIM-RUNS-UNTIL-DONE); any other chat turn is unchanged.
         run_pass = {} if ended else _run_pass(session_id, record.get("client_message_id"))
+        route = record.get(MODEL_ROUTE if ended else ACTIVE_MODEL_ROUTE)
         row = work_row(
             kind=KIND_CHAT_TURN,
             stable_id=turn_id,
@@ -571,6 +574,7 @@ class ChatTurnLane(LanePass):
             # Whether a steer sent now lands in THIS turn — the steer door's own read, so the client
             # never infers it from the turn's kind or its id (a Work turn takes one, a forged one not).
             extra={"title": "", "current_tool": None, **run_pass,
+                   **({MODEL_ROUTE: route} if route else {}),
                    "steerable": not ended and _takes_steer(session_id, record.get("client_message_id")),
                    # D12: who asked and the folder are known only where the turn runs
                    # (``enrich_live``); the workspace is the instance's, read here.

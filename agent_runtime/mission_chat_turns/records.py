@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any, Callable, Mapping
 
 from agent_runtime.mission_chat_phases import TURN_PHASES_KEY, safe_turn_phases
+from agent_runtime.model_route import ACTIVE_MODEL_ROUTE, MODEL_ROUTE, read_model_route
 from agent_runtime.mission_chat_workdir_words import (
     MISSION_CHAT_WORKDIR_UNRESOLVED,
     TURN_WORKDIR_KEY,
@@ -472,6 +473,9 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
             result[key] = kept
     if steer_of := safe_steer_of(value.get(STEER_OF_FIELD)):
         result[STEER_OF_FIELD] = steer_of
+    for key in (ACTIVE_MODEL_ROUTE, MODEL_ROUTE):
+        if route := read_model_route(value.get(key)):
+            result[key] = route
     run_budget = safe_run_budget_accounting(value.get(_JOURNAL_RUN_BUDGET_FIELD))
     if run_budget is not None:
         result[_JOURNAL_RUN_BUDGET_FIELD] = run_budget

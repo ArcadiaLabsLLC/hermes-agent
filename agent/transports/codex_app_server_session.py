@@ -454,6 +454,7 @@ class CodexAppServerSession:
         self, user_input: Any, *, model: Optional[str] = None, reasoning_effort: Optional[str] = None,
         service_tier: Optional[str] = None, turn_timeout: float = 600.0,
         notification_poll_timeout: float = 0.25, post_tool_quiet_timeout: float = 90.0,
+        on_started: Callable[[str | None], None] | None = None,
     ) -> TurnResult:
         """Send a user message and block until turn/completed, bridging approvals and projecting items.
 
@@ -486,6 +487,8 @@ class CodexAppServerSession:
                 ts = self._request_for(result, "turn/start", params, "turn/start")
                 if ts is not None:
                     self._service_tier_sent = service_tier
+                    if on_started is not None and (ts.get("turn") or {}).get("id"):
+                        on_started(model or self._model)
                     self._run_started_turn(result, ts, turn_timeout, notification_poll_timeout, post_tool_quiet_timeout)
         self._interrupt_event.clear()
         return result

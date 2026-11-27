@@ -13,7 +13,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from hermes_time import now
-from ..chat_turn_presence import EVENT_TURN_ENDED, EVENT_TURN_STARTED
+from ..chat_turn_presence import EVENT_TURN_ENDED, EVENT_TURN_MODEL_ROUTE_CHANGED, EVENT_TURN_STARTED
 from ..events import EventLog
 from ..models import Event
 from ..patch_coverage import COVERED_DOMAIN_EVENT_TYPES, normalize_fold_entities
@@ -188,6 +188,9 @@ def batch_changes_running_work_presence(batch: list[tuple[int, Event]]) -> bool:
 batch_changes_chat_turn_presence = batch_changes_running_work_presence
 
 
+_RUNNING_WORK_OVERLAY_EVENTS = APPROVAL_PRESENCE_EVENT_TYPES | {EVENT_TURN_MODEL_ROUTE_CHANGED}
+
+
 def _is_running_work_event(event: Event) -> bool:
     """A process presence event, or a watchdog reconcile that moved ONLY the
     ``running_work`` stores (``families == ["running_work"]``)."""
@@ -196,7 +199,7 @@ def _is_running_work_event(event: Event) -> bool:
     if event_type in PROCESS_PRESENCE_EVENT_TYPES or event_type == EVENT_BUILD_LIVENESS_CHANGED:
         return True  # ``build.ended`` is not here: the core carries it as a notice too
     # MUTATION: drop this arm and test_an_approval_only_batch_ships_the_running_work_section reddens.
-    if event_type in APPROVAL_PRESENCE_EVENT_TYPES:
+    if event_type in _RUNNING_WORK_OVERLAY_EVENTS:
         return True
     payload = event.payload if isinstance(event.payload, dict) else {}
     return (
@@ -342,7 +345,7 @@ def _turn_event_roots(event: Event) -> tuple[str, ...] | None:
 
     event_type = getattr(event, "type", None)
     payload = event.payload if isinstance(event.payload, dict) else {}
-    if event_type in APPROVAL_PRESENCE_EVENT_TYPES:
+    if event_type in _RUNNING_WORK_OVERLAY_EVENTS:
         # It moves only ``running_work``, which the overlay ships whole: carried by the batch's roots.
         return ()
     if event_type in _TURN_PUBLISH_EVENT_TYPES:

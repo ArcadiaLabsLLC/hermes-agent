@@ -19,9 +19,12 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
+
+from .model_route import ModelRoute, execution_model_route
 
 __layer__ = "policy"
 
@@ -51,13 +54,42 @@ class _Attempt:
 class TransportAttempts:
     """The physical provider attempts of one turn and what their transport proved."""
 
-    def __init__(self) -> None:
+    def __init__(self, publish_route: Callable[[ModelRoute], bool] | None = None) -> None:
         self._lock = threading.Lock()
         self._attempts: list[_Attempt] = []
+        self._publish_route = publish_route
+        self._active_route: ModelRoute | None = None
+        self._published_route: ModelRoute | None = None
+        self._request_id: object = None
+        self._reply_route: ModelRoute | None = None
 
     def open(self) -> None:
         with self._lock:
             self._attempts.append(_Attempt())
+
+    def dispatch(self, provider: object, model: object, request_id: object) -> None:
+        route = execution_model_route(provider, model)
+        with self._lock:
+            self._request_id = request_id
+            self._active_route = route
+            if route is None or route == self._published_route or self._publish_route is None:
+                return
+            try:
+                if self._publish_route(route):
+                    self._published_route = route
+            except Exception:
+                logger.warning("turn model route publish failed", exc_info=True)
+
+    def record_reply(self, response_model: object, request_id: object) -> None:
+        with self._lock:
+            route = self._active_route
+            if route is not None and request_id == self._request_id:
+                self._reply_route = execution_model_route(route["provider"], response_model) or route
+
+    @property
+    def reply_route(self) -> ModelRoute | None:
+        with self._lock:
+            return self._reply_route.copy() if self._reply_route is not None else None
 
     def note(self, fact: AttemptFact) -> None:
         with self._lock:
@@ -81,10 +113,12 @@ class TransportAttempts:
         )
 
 
-def begin_turn_attempts(agent: Any) -> TransportAttempts:
+def begin_turn_attempts(
+    agent: Any, *, publish_route: Callable[[ModelRoute], bool] | None = None,
+) -> TransportAttempts:
     """A fresh ledger for the turn *agent* is about to run (a resident agent serves many turns)."""
 
-    ledger = TransportAttempts()
+    ledger = TransportAttempts(publish_route)
     try:
         setattr(agent, _LEDGER_ATTR, ledger)
     except Exception:
@@ -93,11 +127,26 @@ def begin_turn_attempts(agent: Any) -> TransportAttempts:
 
 
 def open_attempt(agent: Any) -> None:
-    """One physical provider dispatch begins on *agent*'s turn."""
-
+    """One physical provider attempt begins on *agent*'s turn."""
     ledger = getattr(agent, _LEDGER_ATTR, None)
     if isinstance(ledger, TransportAttempts):
         ledger.open()
+
+
+def record_dispatched_route(
+    agent: Any, model: object, *, provider: object, request_id: object = None,
+) -> None:
+    """The main turn passed middleware and handed a request to its actual provider route."""
+    ledger = getattr(agent, _LEDGER_ATTR, None)
+    if isinstance(ledger, TransportAttempts):
+        ledger.dispatch(provider, model, request_id)
+
+
+def record_reply_route(agent: Any, response_model: object = None, *, request_id: object = None) -> None:
+    """An accepted response contained text from the same execution attempt."""
+    ledger = getattr(agent, _LEDGER_ATTR, None)
+    if isinstance(ledger, TransportAttempts):
+        ledger.record_reply(response_model, request_id)
 
 
 def note_attempt(agent: Any, fact: AttemptFact) -> None:
@@ -115,4 +164,6 @@ __all__ = [
     "begin_turn_attempts",
     "note_attempt",
     "open_attempt",
+    "record_dispatched_route",
+    "record_reply_route",
 ]

@@ -1,7 +1,7 @@
 {
-  "measured_at": "2026-11-25",
+  "measured_at": "2026-11-27",
   "base": "3b42157858",
-  "files": 231,
+  "files": 233,
   "deleted_lines": 1017,
   "heavy": 2,
   "reasons": [
@@ -1600,6 +1600,21 @@
       },
       "reason": "Seed the same capture operation from the project ref whenever another writer holds the canonical index lock. Keep the competing lock intact.",
       "owner_ruling": "2026-11-25: verify retries and existing workspaces in the checkpoint fix."
+    },
+    {
+      "change": "Running Now reads the provider and model used by a turn",
+      "before": {
+        "files": 231,
+        "deleted_lines": 1017,
+        "heavy": 2
+      },
+      "after": {
+        "files": 233,
+        "deleted_lines": 1017,
+        "heavy": 2
+      },
+      "reason": "Two additive observations at the actual generic and Codex app-server execution boundaries, both feeding one existing turn ledger. The request may be rewritten or vetoed by middleware and the native Codex path bypasses that loop.",
+      "owner_ruling": "2026-11-27 \u00b7 Eternia task chat, implement the first-class fix with existing Hermes execution data and test Codex, fallback, and the finished row after reload"
     }
   ]
 }

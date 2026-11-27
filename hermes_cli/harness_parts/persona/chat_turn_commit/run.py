@@ -439,7 +439,7 @@ class _RunPhases:
         turn_phases.mark("agent_ready")
         # Per-attempt transport evidence (RT-PROVIDER-REQUEST-START): the settle reads
         # "nothing left" only off it, never off an absent `request_sent`.
-        self.transport_attempts = begin_turn_attempts(agent)
+        self.transport_attempts = begin_turn_attempts(agent, publish_route=self.presence.publish_model_route)
         turn_phases.count_delta("registry_probe_rounds", _registry_probe_rounds())
         turn_phases.count_delta("visibility_bundle_builds", _visibility_bundle_builds())
         try:
