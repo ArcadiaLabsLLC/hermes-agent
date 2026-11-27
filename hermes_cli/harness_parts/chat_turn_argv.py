@@ -79,6 +79,7 @@ def add_mission_chat_message_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--client-message-id", default=None)
     parser.add_argument("--idempotency-key", default=None)
     parser.add_argument("--input-mode", dest="input_mode", choices=("typed", "voice"), default=None, help="How the operator made this message (typed | voice; absent = typed); recorded on the turn and carried on its history row")
+    parser.add_argument("--interrupted", action="store_true", help="This message cut off the agent's previous reply (a voice call's talk-over): the turn tells the model so with hermes's own SPEECH_INTERRUPTED_NOTE, on this turn only")
     parser.add_argument("--retry-of", dest="retry_of", default=None, help="client_message_id of the interrupted or budget-exhausted turn of this chat that this send re-runs, or, with --turn-model, of the chat's latest delivered turn this send redoes (recorded as the turn's lineage; any other target is refused chat_turn_retry_target_invalid)")
     parser.add_argument("--turn-provider", dest="turn_provider", default=None, help="Provider for THIS turn only; never written to the chat, the agent or the profile")
     parser.add_argument("--turn-model", dest="turn_model", default=None, help="Model for THIS turn only (a redo of the latest reply with --retry-of); never written to the chat, the agent or the profile")

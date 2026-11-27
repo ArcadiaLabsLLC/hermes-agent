@@ -1064,6 +1064,18 @@ given, it lowers to `--input-mode <mode>`, the write-ahead turn record stores `i
 `persona chat history` and the operator conversation history carries it, so a spoken turn stays spoken across a
 restart (`agent_runtime/chat_turn.py::_input_mode`).
 
+**`interrupted` on `runtime.chat.message` (RT-FU-ETERNIAS-AGENT-CALL-CAN-USE-HERMES-OWN-INTERRUPT-RULES, 2026-11-27).**
+A boolean: this message cut off the agent's previous spoken reply (a voice call's talk-over). Anything but a
+boolean refuses `interrupted_invalid`; absent or `false` lowers to no flag. `true` lowers to `--interrupted`, and the
+turn stages hermes's own `SPEECH_INTERRUPTED_NOTE` (`tools/tts_streaming.py`) on the one-shot note channel, ahead of
+any surface note, so the model reads it on that turn only and the operator's visible row stays their words
+(`agent_runtime/turn_interruption_note.py`). It is the serve's form of the gateway's per-turn `prompt.submit`
+`interrupted`; the CLI's process-wide `mark_speech_interrupted` is never used by a serve turn, which shares its
+process with other chats. The flag tells the model; it stops nothing: a client that talks over a running turn
+stops that turn itself first (`runtime.operator.conversation.stop`, what a Stop button sends), else the send queues behind the chat and runs once the
+cut-off reply has finished. It is a fact of the send, not of the turn record: a `retry_of` or `turn_model`
+re-run of an interrupting turn sends `interrupted` again when it still applies.
+
 **`steer_of` on a late steer's own turn (RT-STEER-NEXT-TURN-NAMES-THE-STEER-IT-DELIVERS, 2026-11-12).** A steer
 accepted too late to land inside its turn runs as the conversation's next turn, `steer-next-<id>`. That turn's
 queued send states `steer_of`: a list of the client message ids of the operator steers it delivers, oldest first

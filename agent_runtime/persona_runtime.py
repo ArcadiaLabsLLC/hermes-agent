@@ -32,6 +32,7 @@ from .profile_runner import (
 )
 from .progress import ChatProgressSink
 from .surface_prompt_note import with_surface_prompt_note
+from .turn_interruption_note import with_interruption_note
 from .tool_permissions import ChatToolPermissionStore
 
 __layer__ = "lanes"
@@ -102,6 +103,8 @@ class GPTPersonaRuntime:
         model_override: str | None = None,
         reasoning_effort: str | None = None,
         surface_prompt: str | None = "",
+        # This message cut off the agent's previous spoken reply (``runtime.chat.message`` ``interrupted``).
+        interrupted: bool = False,
         max_wall_seconds: float | None = 120.0,
         # No API-call cap on the chat lane — align with base Hermes, where a
         # conversational turn is bounded by the tool-calling loop
@@ -311,11 +314,15 @@ class GPTPersonaRuntime:
                     stream_callback=stream_callback,
                     # On a continuing chat the stored first-turn prompt is reused, so a changed
                     # surface prompt rides this turn's tail instead (agent_runtime.surface_prompt_note).
-                    agent_ready_callback=with_surface_prompt_note(
-                        agent_ready_callback,
-                        surface_prompt=surface_prompt,
-                        system_message=system_message,
-                        conversation_history=conversation_history,
+                    # An interrupting message's note is staged first (agent_runtime.turn_interruption_note).
+                    agent_ready_callback=with_interruption_note(
+                        with_surface_prompt_note(
+                            agent_ready_callback,
+                            surface_prompt=surface_prompt,
+                            system_message=system_message,
+                            conversation_history=conversation_history,
+                        ),
+                        interrupted=interrupted,
                     ),
                     clarify_callback=clarify_capture.callback,
                     # Key chat trace on the chat ROOT: session_id is the native tip

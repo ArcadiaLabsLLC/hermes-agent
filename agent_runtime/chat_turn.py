@@ -171,6 +171,7 @@ CHAT_MESSAGE_PARAMS: tuple[str, ...] = (
     "images",
     "input_mode",
     "intent_hint",
+    "interrupted",
     "max_seconds",
     "message",
     "model",
@@ -478,6 +479,9 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
     turn_provider = _text(params, "turn_provider", limit=MAX_MODEL_OVERRIDE_LENGTH)
     turn_model = _text(params, "turn_model", limit=MAX_MODEL_OVERRIDE_LENGTH)
     input_mode = _input_mode(params)
+    # RT-FU-ETERNIAS-AGENT-CALL-CAN-USE-HERMES-OWN-INTERRUPT-RULES: this message cut off the agent's
+    # previous reply, so the turn tells the model so (agent_runtime.turn_interruption_note).
+    interrupted = _flag(params, "interrupted")
     _refuse_door_conflicts(
         session_id=session_id, retry_of=retry_of, provider=provider, model=model,
         use_agent_default=use_agent_default, turn_provider=turn_provider, turn_model=turn_model,
@@ -548,6 +552,8 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         argv += ["--turn-model", turn_model]
     if input_mode:
         argv += ["--input-mode", input_mode]
+    if interrupted:
+        argv.append("--interrupted")
     # RT-OPERATOR-CHAT-SEND-PERSONA: pasted images ride as stored references, never bytes or paths.
     for ref in _image_refs(params):
         argv += [IMAGE_FLAG, ref]

@@ -707,6 +707,7 @@ class _RunPhases:
                 reasoning_effort=(model_selection.get("chat_reasoning_effort")
                                   or getattr(self.instance, "reasoning_effort", None)),
                 surface_prompt=getattr(args, "surface_prompt", "") or "",
+                interrupted=bool(getattr(args, "interrupted", False)),
                 max_wall_seconds=relay_wall_seconds,
                 qa_turn_overrides=getattr(self, "qa_turn_overrides", None),
                 # C8: the legacy `chat.delta` lane is RETIRED (ruling 0 — one

@@ -1,4 +1,4 @@
-"""``runtime.speech.*`` — status, load/unload, streaming recognize, synthesize.
+"""``runtime.speech.*`` — status, load/unload, streaming recognize, synthesize, call settings.
 
 Translation shims over :mod:`agent_runtime.speech_service`; the contract a
 client integrates from is ``docs/agent-runtime-harness/runtime-speech-methods.md``.
@@ -34,6 +34,7 @@ __layer__ = "lanes"
 
 __all__ = [
     "FINAL_TIMEOUT_SECONDS",
+    "_runtime_speech_call_settings",
     "_runtime_speech_load",
     "_runtime_speech_recognize_begin",
     "_runtime_speech_recognize_cancel",
@@ -98,6 +99,20 @@ def _runtime_speech_status(rid: Any, params: dict, context: RpcContext | None = 
     """Both models' state (``unavailable`` + reason, ``available``, ``loading``, ``loaded``) and the
     admission budget. Params (optional): ``models_dir``, ``stt_model``, ``tts_voice``, ``tts_preset`` to inspect."""
     return _speech_answer(rid, "runtime.speech.status", lambda: _service().status(_params(params)))
+
+
+@method("runtime.speech.call_settings", tier=TIER_READ)
+def _runtime_speech_call_settings(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """The user's talk-over-the-agent settings for a voice-call client that owns its own microphone, and
+    the revision of the shared rule vectors its port must match (:mod:`agent_runtime.voice_call_rules`).
+    No params. Answered here, never through the speech service: a phone switches that service off
+    (``bundled-phone.yaml``) and still serves its calls."""
+    from agent_runtime.voice_call_rules import call_settings
+
+    try:
+        return ok(rid, call_settings())
+    except Exception as exc:  # class name only
+        return _failed(rid, "runtime.speech.call_settings", exc)
 
 
 @method("runtime.speech.load", tier=TIER_CONSOLE)

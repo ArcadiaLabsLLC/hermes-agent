@@ -137,6 +137,7 @@ file it is given.
 | method | tier | params |
 |---|---|---|
 | `runtime.speech.status` | read | optional `models_dir`, `stt_model`, `tts_voice`, `tts_preset` (inspect those instead of config) |
+| `runtime.speech.call_settings` | read | — |
 | `runtime.speech.load` | console | `models_dir?`, `stt_model?`, `tts_voice?`, `tts_preset?` (a Kokoro preset from `tts.presets`; omitted keeps a loaded voice's preset, else Kokoro's default `af_heart`; another preset of the loaded voice reloads it), `which?` (`stt` \| `tts` \| `both`, default `both`) |
 | `runtime.speech.unload` | console | `which?` |
 | `runtime.speech.recognize.begin` | console | `sample_rate?` (16000), `encoding?` (`pcm_s16le`), `language?` (`en`) |
@@ -155,6 +156,18 @@ model or spends inference is `console`. Unknown params are ignored.
 when it has one (`RpcContext.spawn_reply`); the reply arrives on the same `id`.
 
 ## Results
+
+**call_settings** — `{barge_in, grace_ms, threshold_multiplier, stop_phrases, rules_revision}`: what a voice-call
+client that owns its own microphone (Eternia's agent call) needs to let the user talk over the agent the way
+hermes's own voice mode does (`agent_runtime/voice_call_rules.py`). Read from this runtime's `voice` config on
+every call, with upstream's meaning: `barge_in` (default true), `grace_ms` from `barge_in_grace_seconds` (whole ms,
+never negative; malformed means 500), `threshold_multiplier` (0 when unset or malformed, meaning the rule's
+default), `stop_phrases` lowercased (`[]` turns stopping off). `rules_revision` names the shared rule vectors
+(`tests/fixtures/voice_call_rules/vectors.json`, written from the live rules by
+`python -m tests.agent_runtime._voice_call_rule_vectors --write`) this runtime's rules answer; a client whose port was checked against another
+revision keeps its half-duplex call. The revision is the file's digest, so it moves on ANY change to the
+vectors, a new scenario too: a client re-runs its port against the new file before it trusts that revision.
+A client adds no setting of its own.
 
 **status** —
 `{contract, stt: SLOT, tts: SLOT, streams, admission: ADMISSION}` where SLOT is

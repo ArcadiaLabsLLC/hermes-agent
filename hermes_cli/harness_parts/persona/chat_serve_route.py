@@ -73,6 +73,7 @@ SEND_FLAGS: tuple[tuple[str, str, str], ...] = (
     ("turn_provider", "--turn-provider", "value"),
     ("turn_model", "--turn-model", "value"),
     ("input_mode", "--input-mode", "value"),
+    ("interrupted", "--interrupted", "flag"),
     ("images", "--image", "list"),
     ("files", "--file", "list"),
     ("skills", "--skill", "list"),
