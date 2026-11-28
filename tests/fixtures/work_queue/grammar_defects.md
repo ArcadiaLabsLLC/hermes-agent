@@ -35,3 +35,5 @@ status: open
 - **`FX-LIVE-CHECK-NO-HANDOFF` — Live check that does not say why its builder could not check it row** · LIVE CHECK 2026-11-12: open the board and read the pill · REQUIRES windows, linux
 - **`FX-LIVE-CHECK-EMPTY-HANDOFF` — Live check whose handoff says nothing row** · LIVE CHECK 2026-11-12: open the board and read the pill · handoff 2026-11-12:
 - **`FX-OWNER-NO-RECOMMEND` — Owner decision with no recommendation row** · BLOCKED 2026-11-12: owner decision — amber or cyan
+- **`FX-RULED-UNDATED` — Ruling with no date first row** · READY 2026-11-28 · RULED owner 2026-11-23: stays deferred
+- **`FX-LEAD-ID-ALONE`** — **Lead whose ID stands alone in its bold row** · READY 2026-11-28
